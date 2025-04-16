@@ -2,6 +2,7 @@ mod asset_loader;
 mod camera;
 mod ground;
 mod schedule;
+mod time_control;
 mod vegetation;
 
 use asset_loader::AssetLoaderPlugin;
@@ -10,6 +11,7 @@ use bevy_rts_camera::RtsCameraPlugin;
 use camera::CameraPlugin;
 use ground::GroundPlugin;
 use schedule::SchedulePlugin;
+use time_control::TimeControlPlugin;
 use vegetation::VegetationPlugin;
 
 fn main() {
@@ -26,5 +28,6 @@ fn main() {
         .add_plugins(CameraPlugin)
         .add_plugins(AssetLoaderPlugin)
         .add_plugins(VegetationPlugin)
+        .add_plugins(TimeControlPlugin)
         .run();
 }

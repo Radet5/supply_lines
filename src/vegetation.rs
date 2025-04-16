@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 use std::ops::Range;
 
-use crate::{asset_loader::SceneAssets, schedule::StartupSet};
+use crate::{asset_loader::SceneAssets, schedule::StartupSet, time_control::TimeController};
 
 const SPAWN_RANGE_X: Range<f32> = -10.0..10.0;
 const SPAWN_RANGE_Z: Range<f32> = -10.0..10.0;
@@ -31,10 +31,13 @@ impl Plugin for VegetationPlugin {
 fn spawn_trees(
     commands: Commands,
     time: Res<Time>,
+    time_controller: Res<TimeController>,
     mut spawn_timer: ResMut<SpawnTimer>,
     scene_assets: Res<SceneAssets>,
 ) {
-    spawn_timer.timer.tick(time.delta());
+    let scaled_delta = time_controller.scale_duration(&time.delta());
+
+    spawn_timer.timer.tick(scaled_delta);
     if !spawn_timer.timer.just_finished() {
         return;
     }
