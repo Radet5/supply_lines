@@ -30,14 +30,11 @@ impl Plugin for VegetationPlugin {
 
 fn spawn_trees(
     commands: Commands,
-    time: Res<Time>,
     time_controller: Res<TimeController>,
     mut spawn_timer: ResMut<SpawnTimer>,
     scene_assets: Res<SceneAssets>,
 ) {
-    let scaled_delta = time_controller.scale_duration(&time.delta());
-
-    spawn_timer.timer.tick(scaled_delta);
+    spawn_timer.timer.tick(time_controller.scaled_delta());
     if !spawn_timer.timer.just_finished() {
         return;
     }
