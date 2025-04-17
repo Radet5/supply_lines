@@ -10,6 +10,10 @@ pub struct TimeController {
 }
 
 impl TimeController {
+    pub fn speed_factor(&self) -> f32 {
+        self.speed_factor
+    }
+
     pub fn scaled_delta(&self) -> Duration {
         self.scaled_delta
     }
@@ -28,7 +32,8 @@ impl Plugin for TimeControlPlugin {
             scaled_delta: Duration::default(),
             simulated_elapsed_secs: 0.,
         })
-        .add_systems(Update, (control_time_speed, scale_time));
+        .add_systems(Update, control_time_speed)
+        .add_systems(FixedUpdate, scale_time);
     }
 }
 
@@ -49,15 +54,11 @@ fn control_time_speed(
         time_controller.speed_factor = 60.0 * 60.0 * 24.0;
         println!("Speed 1day/s");
     } else if keyboard_input.pressed(KeyCode::Backquote) {
-        time_controller.speed_factor = 0.;
+        time_controller.speed_factor = 0.0;
     }
 }
 
 fn scale_time(time: Res<Time>, mut time_controller: ResMut<TimeController>) {
-    let speed_factor = time_controller.speed_factor;
-    if speed_factor == 0.0 {
-        return;
-    }
     let scaled_delta_secs = time.delta_secs_f64() * time_controller.speed_factor as f64;
 
     time_controller.simulated_elapsed_secs += scaled_delta_secs;
