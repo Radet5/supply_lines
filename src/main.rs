@@ -2,6 +2,7 @@ mod age;
 mod asset_loader;
 mod camera;
 mod ground;
+mod hud;
 mod schedule;
 mod time_control;
 mod vegetation;
@@ -11,6 +12,7 @@ use bevy::prelude::*;
 use bevy_rts_camera::RtsCameraPlugin;
 use camera::CameraPlugin;
 use ground::GroundPlugin;
+use hud::HUDPlugin;
 use schedule::SchedulePlugin;
 use time_control::TimeControlPlugin;
 use vegetation::VegetationPlugin;
@@ -30,5 +32,6 @@ fn main() {
         .add_plugins(AssetLoaderPlugin)
         .add_plugins(VegetationPlugin)
         .add_plugins(TimeControlPlugin)
+        .add_plugins(HUDPlugin)
         .run();
 }

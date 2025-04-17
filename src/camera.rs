@@ -17,6 +17,7 @@ fn spawn_rts_camera(mut commands: Commands) {
             key_down: KeyCode::KeyS,
             key_left: KeyCode::KeyA,
             key_right: KeyCode::KeyD,
+            edge_pan_width: 0.0,
             ..Default::default()
         },
     ));
