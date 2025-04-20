@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-#[derive(Resource, Debug)]
+#[derive(Resource, Debug, Reflect)]
+#[reflect(Resource)]
 pub struct TimeController {
     speed_factor: f32,
     scaled_delta: Duration,
@@ -73,7 +74,8 @@ impl Plugin for TimeControlPlugin {
             simulated_elapsed_secs: 0.,
         })
         .add_systems(Update, control_time_speed)
-        .add_systems(FixedUpdate, scale_time);
+        .add_systems(FixedUpdate, scale_time)
+        .register_type::<TimeController>();
     }
 }
 

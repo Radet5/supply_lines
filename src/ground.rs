@@ -20,7 +20,7 @@ fn spawn_ground(
 ) {
     // plane
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(20., 20.))),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(100., 100.))),
         MeshMaterial3d(materials.add(Color::srgb(0.529, 0.922, 0.643))),
         Ground,
     ));

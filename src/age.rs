@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::time_control::TimeController;
 
-#[derive(Component, Debug)]
+#[derive(Reflect, Component, Debug)]
 pub struct Age {
     simulated_birth_timestamp: f64,
 }
