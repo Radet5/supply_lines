@@ -7,20 +7,21 @@ use crate::{
 };
 
 const TREE_CONFIG: TreeConfig = TreeConfig {
-    spawn_range_x: -10.0..10.0,
-    spawn_range_z: -10.0..10.0,
-    spawn_time_seconds: 60. * 60. * 24. * 30.,
+    spawn_range_x: -20.0..20.0,
+    spawn_range_z: -20.0..20.0,
     grow_check_seconds: 0.5,
     maturity_seconds: 60. * 60. * 24. * 5.,
     lifespan_days: 300.,
     min_dist_between_trees_sqrd: 2.8 * 2.8,
+    initial_tree_count: 100,
+    scale: 0.1,
 };
 
 const FRUIT_CONFIG: FruitConfig = FruitConfig {
     spawn_check_sim_seconds: 60. * 60. * 24.,
     decay_check_sim_seconds: 60. * 60. * 24.,
     lifespan_days: 30.,
-    scale: 0.5,
+    scale: 0.25,
     spawn_count_range: 1..4,
 };
 
@@ -30,13 +31,19 @@ const TREE_SPAWN_FROM_FRUIT_PROBABILITY: f64 = 0.2;
 #[derive(Component, Debug)]
 pub struct Tree;
 
+#[derive(Event, Debug)]
+struct SpawnTreeEvent {
+    translation: Option<Vec3>,
+}
+
+impl SpawnTreeEvent {
+    fn new(translation: Option<Vec3>) -> Self {
+        Self { translation }
+    }
+}
+
 #[derive(Component, Debug)]
 pub struct Fruit;
-
-#[derive(Resource, Debug)]
-pub struct SpawnTimer {
-    timer: Timer,
-}
 
 #[derive(Resource, Debug)]
 pub struct GrowTimer {
@@ -57,10 +64,7 @@ pub struct VegetationPlugin;
 
 impl Plugin for VegetationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(SpawnTimer {
-            timer: Timer::from_seconds(TREE_CONFIG.spawn_time_seconds, TimerMode::Repeating),
-        })
-        .insert_resource(GrowTimer {
+        app.insert_resource(GrowTimer {
             timer: Timer::from_seconds(TREE_CONFIG.grow_check_seconds, TimerMode::Repeating),
         })
         .insert_resource(FruitTimer {
@@ -69,57 +73,59 @@ impl Plugin for VegetationPlugin {
         .insert_resource(DecayTimer {
             timer: Timer::from_seconds(FRUIT_CONFIG.decay_check_sim_seconds, TimerMode::Repeating),
         })
+        .add_event::<SpawnTreeEvent>()
         .add_systems(Startup, spawn_trees.in_set(StartupSet::StartupRoundB))
         .add_systems(FixedUpdate, grow)
         // .add_systems(FixedUpdate, spawn_trees)
         .add_systems(FixedUpdate, spawn_fruit)
-        .add_systems(FixedUpdate, decay_fruit);
+        .add_systems(FixedUpdate, (decay_fruit, spawn_tree).chain());
     }
 }
 
-fn spawn_trees(
-    commands: Commands,
-    time_controller: Res<TimeController>,
-    scene_assets: Res<SceneAssets>,
-) {
-    spawn_tree(commands, scene_assets, time_controller, None);
+fn spawn_trees(mut spawn_tree_event_writer: EventWriter<SpawnTreeEvent>) {
+    for _ in 0..TREE_CONFIG.initial_tree_count {
+        spawn_tree_event_writer.send(SpawnTreeEvent::new(None));
+    }
 }
 
 fn spawn_tree(
     mut commands: Commands,
     scene_assets: Res<SceneAssets>,
     time_controller: Res<TimeController>,
-    translation: Option<Vec3>,
+    mut spawn_tree_event_reader: EventReader<SpawnTreeEvent>,
 ) {
     let mut rng = rand::rng();
 
-    let random_angle = rng.random_range(0.0..std::f32::consts::PI);
-    let rotation: Quat = Quat::from_axis_angle(Vec3::new(0., 1., 0.), random_angle);
+    for spawn_event in spawn_tree_event_reader.read() {
+        let random_angle = rng.random_range(0.0..std::f32::consts::PI);
+        let rotation: Quat = Quat::from_axis_angle(Vec3::new(0., 1., 0.), random_angle);
 
-    let translation = translation.unwrap_or(Vec3::new(
-        rng.random_range(TREE_CONFIG.spawn_range_x),
-        0.,
-        rng.random_range(TREE_CONFIG.spawn_range_z),
-    ));
+        let translation = spawn_event.translation;
+        let translation = translation.unwrap_or(Vec3::new(
+            rng.random_range(TREE_CONFIG.spawn_range_x),
+            0.,
+            rng.random_range(TREE_CONFIG.spawn_range_z),
+        ));
 
-    commands.spawn((
-        Name::new("Tree"),
-        SceneRoot(scene_assets.tree.clone()),
-        Transform::from_translation(translation)
-            .with_rotation(rotation)
-            .with_scale(Vec3::splat(0.1)),
-        Tree,
-        Age::new(&time_controller),
-    ));
+        commands.spawn((
+            Name::new("Tree"),
+            SceneRoot(scene_assets.tree.clone()),
+            Transform::from_translation(translation)
+                .with_rotation(rotation)
+                .with_scale(Vec3::splat(TREE_CONFIG.scale)),
+            Tree,
+            Age::new(&time_controller),
+        ));
+    }
 }
 
 fn decay_fruit(
     mut commands: Commands,
     query: Query<(Entity, &Age, &Transform), With<Fruit>>,
-    tree_query: Query<(&Transform), With<Tree>>,
+    tree_query: Query<&Transform, With<Tree>>,
     time_controller: Res<TimeController>,
     mut decay_timer: ResMut<DecayTimer>,
-    scene_assets: Res<SceneAssets>,
+    mut spawn_tree_event_writer: EventWriter<SpawnTreeEvent>,
 ) {
     decay_timer.timer.tick(time_controller.scaled_delta());
     if !decay_timer.timer.just_finished() {
@@ -141,18 +147,7 @@ fn decay_fruit(
                     }
                 }
                 if !dont {
-                    let random_angle = rng.random_range(0.0..std::f32::consts::PI);
-                    let rotation: Quat = Quat::from_axis_angle(Vec3::new(0., 1., 0.), random_angle);
-                    // TODO: USE AN EVENT HERE AND HAVE IT USE THE SPAWN TREE FN
-                    commands.spawn((
-                        Name::new("Tree"),
-                        SceneRoot(scene_assets.tree.clone()),
-                        Transform::from_translation(transform.translation)
-                            .with_rotation(rotation)
-                            .with_scale(Vec3::splat(0.1)),
-                        Tree,
-                        Age::new(&time_controller),
-                    ));
+                    spawn_tree_event_writer.send(SpawnTreeEvent::new(Some(transform.translation)));
                 }
             }
             // TODO: switch this to an event and then schedule despawns correctly
@@ -232,13 +227,14 @@ fn grow(
 }
 
 struct TreeConfig {
+    initial_tree_count: u32,
     spawn_range_x: Range<f32>,
     spawn_range_z: Range<f32>,
-    spawn_time_seconds: f32,
     grow_check_seconds: f32,
     maturity_seconds: f32,
     lifespan_days: f32,
     min_dist_between_trees_sqrd: f32,
+    scale: f32,
 }
 
 struct FruitConfig {
