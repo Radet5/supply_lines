@@ -1,9 +1,11 @@
-use bevy::prelude::*;
+use avian3d::prelude::*;
+use bevy::{prelude::*, utils::tracing::Instrument};
 use rand::Rng;
-use std::ops::Range;
+use std::{f32::MAX_10_EXP, ops::Range};
 
 use crate::{
-    age::Age, asset_loader::SceneAssets, schedule::StartupSet, time_control::TimeController,
+    age::Age, asset_loader::SceneAssets, navigation::Obstacle, schedule::StartupSet,
+    time_control::TimeController,
 };
 
 const TREE_CONFIG: TreeConfig = TreeConfig {
@@ -13,7 +15,7 @@ const TREE_CONFIG: TreeConfig = TreeConfig {
     maturity_seconds: 60. * 60. * 24. * 5.,
     lifespan_days: 300.,
     min_dist_between_trees_sqrd: 2.8 * 2.8,
-    initial_tree_count: 100,
+    initial_tree_count: 250,
     scale: 0.1,
 };
 
@@ -32,7 +34,7 @@ const TREE_SPAWN_FROM_FRUIT_PROBABILITY: f64 = 0.2;
 pub struct Tree;
 
 #[derive(Event, Debug)]
-struct SpawnTreeEvent {
+pub struct SpawnTreeEvent {
     translation: Option<Vec3>,
 }
 
@@ -82,7 +84,7 @@ impl Plugin for VegetationPlugin {
     }
 }
 
-fn spawn_trees(mut spawn_tree_event_writer: EventWriter<SpawnTreeEvent>) {
+pub fn spawn_trees(mut spawn_tree_event_writer: EventWriter<SpawnTreeEvent>) {
     for _ in 0..TREE_CONFIG.initial_tree_count {
         spawn_tree_event_writer.send(SpawnTreeEvent::new(None));
     }
@@ -92,9 +94,11 @@ fn spawn_tree(
     mut commands: Commands,
     scene_assets: Res<SceneAssets>,
     time_controller: Res<TimeController>,
+    tree_query: Query<&Transform, With<Tree>>,
     mut spawn_tree_event_reader: EventReader<SpawnTreeEvent>,
 ) {
     let mut rng = rand::rng();
+    let mut spawned: Vec<Transform> = Vec::from_iter(tree_query.iter().cloned());
 
     for spawn_event in spawn_tree_event_reader.read() {
         let random_angle = rng.random_range(0.0..std::f32::consts::PI);
@@ -107,22 +111,35 @@ fn spawn_tree(
             rng.random_range(TREE_CONFIG.spawn_range_z),
         ));
 
-        commands.spawn((
-            Name::new("Tree"),
-            SceneRoot(scene_assets.tree.clone()),
-            Transform::from_translation(translation)
+        let collider_stuff = (
+            Collider::cylinder(0.2, 2.0),
+            Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+            Obstacle,
+        );
+
+        if !too_close_to_another_tree(spawned.iter(), &translation) {
+            let transform = Transform::from_translation(translation)
                 .with_rotation(rotation)
-                .with_scale(Vec3::splat(TREE_CONFIG.scale)),
-            Tree,
-            Age::new(&time_controller),
-        ));
+                .with_scale(Vec3::splat(TREE_CONFIG.scale));
+            spawned.push(transform);
+            commands
+                .spawn((
+                    Name::new("Tree"),
+                    SceneRoot(scene_assets.tree.clone()),
+                    transform,
+                    Tree,
+                    Age::new(&time_controller),
+                ))
+                .with_children(|parent| {
+                    parent.spawn(collider_stuff);
+                });
+        }
     }
 }
 
 fn decay_fruit(
     mut commands: Commands,
     query: Query<(Entity, &Age, &Transform), With<Fruit>>,
-    tree_query: Query<&Transform, With<Tree>>,
     time_controller: Res<TimeController>,
     mut decay_timer: ResMut<DecayTimer>,
     mut spawn_tree_event_writer: EventWriter<SpawnTreeEvent>,
@@ -136,23 +153,49 @@ fn decay_fruit(
         if age.age_days(&time_controller) as f32 > FRUIT_CONFIG.lifespan_days {
             let mut rng = rand::rng();
             if rng.random_bool(TREE_SPAWN_FROM_FRUIT_PROBABILITY) {
-                let mut dont: bool = false;
-                for tree_transform in tree_query.iter() {
-                    if (tree_transform
-                        .translation
-                        .distance_squared(transform.translation))
-                        < TREE_CONFIG.min_dist_between_trees_sqrd
-                    {
-                        dont = true;
-                    }
-                }
-                if !dont {
-                    spawn_tree_event_writer.send(SpawnTreeEvent::new(Some(transform.translation)));
-                }
+                spawn_tree_event_writer.send(SpawnTreeEvent::new(Some(transform.translation)));
             }
             // TODO: switch this to an event and then schedule despawns correctly
             commands.entity(entity).despawn_recursive();
         }
+    }
+}
+
+fn too_close_to_another_tree<'a>(
+    iter: impl Iterator<Item = &'a Transform>,
+    translation: &Vec3,
+) -> bool {
+    match within_dist_sqrd_of_transforms(TREE_CONFIG.min_dist_between_trees_sqrd, iter, translation)
+    {
+        Some(_) => true,
+        None => false,
+    }
+}
+
+pub fn within_dist_sqrd_of_transforms<'a>(
+    dist_sqrd: f32,
+    iter: impl Iterator<Item = &'a Transform>,
+    translation: &Vec3,
+) -> Option<Vec3> {
+    let mut min_dist = 99999.0;
+    let mut min_dist_translation: Vec3 = Vec3::splat(0.0);
+    for transform in iter {
+        let cur_dist = transform.translation.distance_squared(translation.clone());
+        // println!(
+        //     "{:?} to {:?}: cur dist: {}",
+        //     transform.translation, translation, cur_dist
+        // );
+        if (cur_dist) < dist_sqrd {
+            if cur_dist < min_dist {
+                min_dist = cur_dist;
+                min_dist_translation = transform.translation;
+            }
+        }
+    }
+    if min_dist < 99999.0 {
+        Some(min_dist_translation)
+    } else {
+        None
     }
 }
 

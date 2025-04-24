@@ -7,6 +7,7 @@ mod ground;
 mod hud;
 mod light;
 mod movement;
+mod navigation;
 mod schedule;
 mod time_control;
 mod vegetation;
@@ -14,6 +15,7 @@ mod vegetation;
 use age::Age;
 use animal::AnimalPlugin;
 use asset_loader::AssetLoaderPlugin;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_rts_camera::RtsCameraPlugin;
 use camera::CameraPlugin;
@@ -22,6 +24,7 @@ use ground::GroundPlugin;
 use hud::HUDPlugin;
 use light::LightPlugin;
 use movement::MovementPlugin;
+use navigation::NavigationPlugin;
 use schedule::SchedulePlugin;
 use time_control::TimeControlPlugin;
 use vegetation::VegetationPlugin;
@@ -34,6 +37,8 @@ fn main() {
             brightness: 75.,
         })
         .add_plugins(DefaultPlugins)
+        .add_plugins(PhysicsPlugins::default())
+        .add_plugins(NavigationPlugin)
         .add_plugins(LightPlugin)
         .add_plugins(SchedulePlugin)
         .add_plugins(GroundPlugin)

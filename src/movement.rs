@@ -55,15 +55,16 @@ fn update_position(
             let one_eighty = one_eighty.to_radians();
             let mut looking_at = transform.looking_at(destination.value, Dir3::Y);
             looking_at.rotate_y(one_eighty);
-            let angle: f32 = 0.1 * delta;
+            let angle: f32 = 0.05 * delta;
             let angle = angle.to_degrees();
             let rotation = transform
                 .rotation
                 .rotate_towards(looking_at.rotation, angle);
             let diff = (rotation - transform.rotation).length();
-            if diff > 0.01 {
+            if diff > 0.1 {
                 transform.rotation = rotation;
             } else {
+                transform.rotation = rotation;
                 let d = speed.value * delta;
                 let new_translation = transform.translation.move_towards(destination.value, d);
                 transform.translation = new_translation;
