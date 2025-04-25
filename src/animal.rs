@@ -1,14 +1,20 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use big_brain::{
+    prelude::{FirstToScore, Steps},
+    thinker::Thinker,
+};
 use rand::Rng;
 
 use crate::{
     age::Age,
     asset_loader::{AnimationData, SceneAssets, asset_load_handle},
+    hud::pick_guy,
     movement::{Destination, Speed, animate_movement, idle_on_stop, on_arrive},
     navigation::{EntityPath, FindPathEvent, NoPathFoundEvent, Obstacle},
+    needs::{Eat, Hungry, MoveToNearest, PhysicalNeeds},
     time_control::TimeController,
-    vegetation::{Tree, spawn_trees, within_dist_sqrd_of_transforms},
+    vegetation::{Fruit, Tree, spawn_trees, within_dist_sqrd_of_transforms},
 };
 
 pub struct AnimalPlugin;
@@ -29,6 +35,7 @@ impl Plugin for AnimalPlugin {
 static ANIMAL_CONFIG: AnimalConfig = AnimalConfig { initial_count: 10 };
 
 #[derive(Component, Debug)]
+#[require(PhysicalNeeds)]
 pub struct Animal {
     animal_type: AnimalType,
 }
@@ -164,6 +171,11 @@ fn spawn_animal(
             }
         }
 
+        let move_and_eat = Steps::build()
+            .label("MoveAndEat")
+            .step(MoveToNearest::<Fruit>::new())
+            .step(Eat::new(90.0, 0.5));
+
         commands
             .spawn((
                 Name::new(name),
@@ -180,11 +192,16 @@ fn spawn_animal(
                     animation_key: name,
                     animation_index,
                 },
+                Thinker::build()
+                    .label("AnimaThinker")
+                    .picker(FirstToScore { threshold: 0.8 })
+                    .when(Hungry, move_and_eat),
             ))
             .with_children(|parent| {
                 parent.spawn(collider_stuff);
             })
             .observe(unstuck_animals)
+            .observe(pick_guy)
             .observe(asset_load_handle)
             .observe(animate_movement)
             .observe(idle_on_stop)

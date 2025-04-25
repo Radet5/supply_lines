@@ -58,7 +58,7 @@ impl TimeController {
 
     pub fn formatted_string(years: u64, days: u16, hours: u8, minutes: u8, seconds: u8) -> String {
         format!(
-            "{} years, {} days, {} hours, {} minutes, {} seconds",
+            "{} years, {:02} days, {:02} hours, {:02} minutes, {:02} seconds",
             years, days, hours, minutes, seconds
         )
     }
